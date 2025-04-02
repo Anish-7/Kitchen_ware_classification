@@ -1,0 +1,8 @@
+numpy
+Flask
+Flask-Cors
+Pillow
+gunicorn
+numba
+tensorflow==2.12.*
+opencv-contrib-python
