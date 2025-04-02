@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Classification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #video {
+            width: 320px; /* Set a fixed width for mobile */
+            height: auto;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        #capturedImage {
+            width: 80%;
+            height: auto;
+            margin: 20px auto;
+            display: block;
+        }
+        #result {
+            margin-top: 20px;
+        }
+        .class-button {
+            margin: 5px;
+        }
+        #retrainingMessage {
+            display: none;
+            margin-top: 20px;
+            color: blue;
+        }
+    </style>
+</head>
+<body>
+    <h1>Capture and Predict Image</h1>
+    
+    <button id="captureButton">Capture Image</button>
+    
+    <video id="video" autoplay playsinline></video> <!-- Added playsinline for mobile -->
+    
+    <canvas id="canvas" width="320" height="240" style="display:none;"></canvas> <!-- Match canvas size to video -->
+    
+    <img id="capturedImage" alt="Captured Image">
+    
+    <div id="result"></div>
+    <div id="feedback" style="display: none;">
+        <h2>Select True Class</h2>
+        <div id="classButtons"></div>
+        <button id="submitFeedback">Submit Feedback</button>
+    </div>
+    <div id="retrainingMessage">Retraining the model, please wait...</div>
+
+    <script>
+        const captureButton = document.getElementById('captureButton');
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const capturedImage = document.getElementById('capturedImage');
+        const resultDiv = document.getElementById('result');
+        const feedbackDiv = document.getElementById('feedback');
+        const classButtonsDiv = document.getElementById('classButtons');
+        const retrainingMessage = document.getElementById('retrainingMessage');
+
+        const ctx = canvas.getContext('2d');
+        let predictedClass;
+
+        async function startCamera() {
+            try {
+                // Use the back camera by default
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { exact: "environment" } // Back camera
+                    }
+                });
+                video.srcObject = stream;
+                video.play();
+            } catch (err) {
+                console.error('Error accessing camera: ', err);
+                alert('Unable to access camera. Please ensure permissions are granted.');
+            }
+        }
+
+        function captureImage() {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            capturedImage.src = canvas.toDataURL('image/png');
+            sendImageToServer(canvas.toDataURL('image/png'));
+        }
+
+        async function sendImageToServer(imageDataURL) {
+            const formData = new FormData();
+            formData.append('file', dataURLToBlob(imageDataURL), 'image.png');
+            
+            try {
+                const response = await fetch('http://127.0.0.1/predict', {
+                    method: 'POST',
+                    body: formData,
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Network response was not ok.');
+                }
+                
+                const result = await response.json();
+                predictedClass = result.predicted_class;
+                resultDiv.innerText = 'Predicted Class: ' + predictedClass;
+                showFeedbackOptions();
+            } catch (error) {
+                resultDiv.innerText = 'Error: ' + error.message;
+            }
+        }
+
+        function showFeedbackOptions() {
+            feedbackDiv.style.display = 'block';
+            classButtonsDiv.innerHTML = ''; // Clear previous buttons
+
+            const classLabels = ['cup', 'knife', 'scissors', 'spoon']; // Correct order
+            classLabels.forEach(label => {
+                const button = document.createElement('button');
+                button.innerText = label;
+                button.classList.add('class-button');
+                button.onclick = () => selectTrueClass(label);
+                classButtonsDiv.appendChild(button);
+            });
+        }
+
+        function selectTrueClass(trueClass) {
+            const submitButton = document.getElementById('submitFeedback');
+            submitButton.onclick = () => sendFeedbackToServer(predictedClass, trueClass);
+        }
+
+        async function sendFeedbackToServer(predictedClass, trueClass) {
+            const imageDataURL = canvas.toDataURL('image/png');
+            const formData = new FormData();
+            formData.append('predicted_class', predictedClass);
+            formData.append('true_class', trueClass);
+            formData.append('image', imageDataURL);
+
+            retrainingMessage.style.display = 'block'; // Show retraining message
+
+            try {
+                const response = await fetch('http://127.0.0.1/feedback', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to submit feedback.');
+                }
+
+                const result = await response.json();
+                resultDiv.innerText = 'Feedback submitted for class: ' + trueClass;
+            } catch (error) {
+                resultDiv.innerText = 'Error: ' + error.message;
+            } finally {
+                retrainingMessage.style.display = 'none'; // Hide retraining message
+            }
+        }
+
+        function dataURLToBlob(dataURL) {
+            const [header, data] = dataURL.split(',');
+            const mime = header.match(/:(.*?);/)[1];
+            const binary = atob(data);
+            const array = [];
+            for (let i = 0; i < binary.length; i++) {
+                array.push(binary.charCodeAt(i));
+            }
+            return new Blob([new Uint8Array(array)], { type: mime });
+        }
+
+        captureButton.addEventListener('click', captureImage);
+        startCamera();
+    </script>
+</body>
+</html>
