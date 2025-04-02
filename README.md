@@ -46,12 +46,6 @@ Web Framework: Flask
 Deployment: Docker, Google Cloud Run
 Image Processing: OpenCV, HOG features
 
-Contributors
-Anish Madhusudhan (5159213)
-Muhammad Talha Khan (5159792)
-Rima Samanta (5128176)
-
-
 
 Acknowledgments
 I would like to Thank you Prof. Dr. S. Twieg for helping me out in this project.
